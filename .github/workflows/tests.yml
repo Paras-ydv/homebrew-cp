@@ -1,0 +1,62 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "23 4 * * 1"   # weekly: catch breakage from new Homebrew / Xcode / runner images
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  formula:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-26, macos-15, macos-26-intel, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Set up Homebrew with this tap
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@4790763c0a3ba4036f72634dc079c4a7dfcd4878 # 2026.10.19.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: brew style + audit
+        run: |
+          brew style paras-ydv/cp
+          brew audit --strict --online --formula paras-ydv/cp/cp-mac
+
+      - name: brew install
+        run: brew install --formula --build-from-source paras-ydv/cp/cp-mac
+
+      - name: brew test
+        run: brew test paras-ydv/cp/cp-mac
+
+      - name: cp-mac link, then plain clang++ finds the headers
+        run: |
+          cp-mac link
+          printf '#include <bits/stdc++.h>\n#include <ext/pb_ds/assoc_container.hpp>\n#include <ext/pb_ds/tree_policy.hpp>\nusing namespace std; using namespace __gnu_pbds;\nint main(){ tree<int,null_type,less<int>,rb_tree_tag,tree_order_statistics_node_update> s; s.insert(5); s.insert(1); cout << *s.find_by_order(1) << " " << __lg(1024) << "\\n"; }\n' > /tmp/t.cpp
+          clang++ -std=c++17 /tmp/t.cpp -o /tmp/t
+          test "$(/tmp/t)" = "5 10"
+          test "$(echo | cprun /tmp/t.cpp)" = "5 10"
+          cp-mac doctor
+
+      - name: cp-mac uninstall + brew uninstall leave nothing behind
+        run: |
+          cp-mac uninstall
+          brew uninstall --formula paras-ydv/cp/cp-mac
+          fail=0
+          for f in /usr/local/include/bits/stdc++.h /usr/local/include/ext/pb_ds /usr/local/include/ext/rope /usr/local/include/cp-mac \
+                   "$(brew --prefix)/include/bits/stdc++.h" "$(brew --prefix)/bin/cp-mac" "$(brew --prefix)/bin/cprun"; do
+            if [ -e "$f" ] || [ -L "$f" ]; then echo "::error::left behind: $(ls -ld "$f")"; fail=1; fi
+          done
+          [ "$fail" -eq 0 ]
