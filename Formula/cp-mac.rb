@@ -5,7 +5,7 @@ class CpMac < Formula
   desc "GCC-only headers (bits/stdc++.h, pb_ds, rope) for Apple Clang"
   homepage "https://github.com/Paras-ydv/cp-mac"
   url "https://github.com/Paras-ydv/cp-mac/archive/refs/tags/v1.0.0.tar.gz"
-  sha256 "0cee77c578a247fbe132e5507c5aaf3baca6d7470a8a79042d12da6afa330e25"
+  sha256 "5d16d5a7258972a540980265747ab8d8e0b54e2f4788c3bc2fb080b0dc59fcd6"
   license all_of: [
     "MIT",
     "GPL-3.0-or-later" => { with: "GCC-exception-3.1" },
